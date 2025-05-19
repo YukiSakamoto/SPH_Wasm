@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import Stats from 'three/addons/libs/stats.module.js';
 import createModule from './em.js';
 
 let scene, camera, renderer;
@@ -12,6 +13,7 @@ let InitSPH, Integrate, ComputeForces, ComputeDensityPressure;
 let init_serialized_coordinate, get_serialized_coordinate_buffer_ptr, get_serialized_coordinate_buffer_size;
 let num_particles;
 let set_num_particles;
+let stats;
 const n = 2000;
 let balls = [];
 createModule().then((Module) => {
@@ -61,6 +63,13 @@ createModule().then((Module) => {
 		const controls = new OrbitControls(camera, renderer.domElement);
 	}
 
+	function setup_stats() {
+		console.log('Stats');
+		stats = new Stats();
+		stats.showPanel(0);
+		document.body.appendChild(stats.dom);
+	}
+
 	function setup_helper() {
 		const axes= new THREE.AxesHelper();
 		const gridhelper = new THREE.GridHelper(10, 10);
@@ -70,6 +79,7 @@ createModule().then((Module) => {
 
 
 	setup_three();
+	setup_stats();
 	setup_helper();
 	//balls = []
 	for(let i = 0; i < n; i++) {
@@ -117,7 +127,7 @@ createModule().then((Module) => {
 	cube.rotation.x += 0.01;
 	cube.rotation.y += 0.01;
 	renderer.render(scene, camera);
-
+	stats.update();
 	}
 });
 
