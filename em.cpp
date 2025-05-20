@@ -65,17 +65,20 @@ const static float VIEW_HEIGHT= 1.5 * float(WINDOW_HEIGHT);
 const static Eigen::Vector2d G(0.f, -10.f);
 const static float REST_DENS = 300.f;
 const static float GAS_CONST = 2000.f;  // const for eq of state
-//const static float H = 16.f;
-const static float H = 8.f;
+const static float H = 16.f;            // kernel radius
 const static float HSQ = H*H;       // radius^2 for optimization
 const static float MASS = 2.5f;     //assume all particles have the same mass
 const static float VISC = 200.f;    // viscosity constant
-const static float DT = 0.0007f;
-const static float EPS = H;
+const static float DT = 0.0007f;    // integration timestep
 
+// smoothing kernels defined in Müller and their gradients
+// adapted to 2D per "SPH Based Shallow Water Simulation" by Solenthaler et al.
 const static float POLY6 = 4.f / (M_PI * pow(H, 8.f));
 const static float SPIKY_GRAD = -10.f / (M_PI * pow(H, 5.f));
 const static float VISC_LAP = 40.f / (M_PI * pow(H, 5.f));
+
+// simulation parameters
+const static float EPS = H; // boundary epsilon
 const static float BOUND_DAMPING = -0.5f;
 
 size_t num_particles_limit = 100;

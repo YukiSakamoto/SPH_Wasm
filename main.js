@@ -14,8 +14,13 @@ let init_serialized_coordinate, get_serialized_coordinate_buffer_ptr, get_serial
 let num_particles;
 let set_num_particles;
 let stats;
+let mesh;
 const n = 2000;
 let balls = [];
+
+const use_instanced_mesh = false;
+//const use_instanced_mesh = true;
+
 createModule().then((Module) => {
 	InitSPH = Module.InitSPH;
 	Integrate = Module.Integrate;
@@ -77,28 +82,63 @@ createModule().then((Module) => {
 		scene.add(gridhelper);
 	}
 
+	function setup_balls() {
+		for(let i = 0; i < n; i++) {
+			let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
+			let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
+			let ball= new THREE.Mesh(ball_geometry, ball_material)
+			balls.push(ball);
+			scene.add(ball);
+		}
+	}
+	function update_ball_positions() {
+		for(let i = 0; i < n; i++) {
+			let x = coordinateArray[i*3+0]; //300;
+			let y = coordinateArray[i*3+1]; //300;
+			let z = coordinateArray[i*3+2]; //300;
+			//console.log(x)
+			x /= 100;
+			y /= 100;
+			z /= 100;
+			x -= 5;
+			balls[i].position.set(x, y, z);
+		}
+	}
+	function setup_instanced_mesh() {
+		let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
+		let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
+		mesh = new THREE.InstancedMesh(ball_geometry, ball_material, n);
+		scene.add(mesh);
+	}
+	function update_instanced_mesh_positions() {
+		const dummy = new THREE.Object3D();
+		console.log('instanced mesh');
+		for(let i = 0; i < n; i++) {
+			let x = coordinateArray[i*3+0];
+			let y = coordinateArray[i*3+1];
+			let z = coordinateArray[i*3+2];
+			x /= 100;
+			y /= 100;
+			z /= 100;
+			x -= 5;
+			dummy.position.set(x, y, z)
+			dummy.updateMatrix();
+			mesh.setMatrixAt(i, dummy.matrix)
+		}
+		mesh.instanceMatrix.needsUpdate = true;
+	}
 
 	setup_three();
 	setup_stats();
 	setup_helper();
-	//balls = []
-	for(let i = 0; i < n; i++) {
-		let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
-		let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
-		let ball= new THREE.Mesh(ball_geometry, ball_material)
-		let x = coordinateArray[i*3+0]; //300;
-		let y = coordinateArray[i*3+1]; //300;
-		let z = coordinateArray[i*3+2]; //300;
-		x /= 100;
-		y /= 100;
-		z /= 100;
-		x -= 5;
-		ball.position.set(x, y, z);
-		balls.push(ball);
-		scene.add(ball);
+	if (use_instanced_mesh == true) {
+		setup_instanced_mesh();
+		update_instanced_mesh_positions();
+	} else {
+		setup_balls();
+		update_ball_positions();
 	}
-
-
+	//balls = []
 
 	animate();
 
@@ -110,18 +150,10 @@ createModule().then((Module) => {
 		}
 		init_serialized_coordinate();
 		console.log('calculation done');
-		for(let i = 0; i < n; i++) {
-			let x = coordinateArray[i*3+0]; //300;
-			let y = coordinateArray[i*3+1]; //300;
-			let z = coordinateArray[i*3+2]; //300;
-			//console.log(x)
-			x /= 100;
-			y /= 100;
-			z /= 100;
-			x -= 5;
-			balls[i].position.set(x, y, z);
-			//balls[i].position.set(x, y, z);
-			//ball.position.set(0 + i, 0, 0);
+		if (use_instanced_mesh == true) {
+			update_instanced_mesh_positions();
+	 	} else {
+			update_ball_positions();
 		}
 	requestAnimationFrame(animate);
 	cube.rotation.x += 0.01;
