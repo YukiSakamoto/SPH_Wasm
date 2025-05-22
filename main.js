@@ -2,24 +2,38 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import Stats from 'three/addons/libs/stats.module.js';
+import GUI from 'lil-gui';
 import createModule from './em.js';
 
 let scene, camera, renderer;
 let geometry, cube, material; 
 let coordinateArray;
 let xyz_geometry;
+let mesh;	// instanced mesh
 
+// Emscripten Exported Function
 let InitSPH, Integrate, ComputeForces, ComputeDensityPressure;
 let init_serialized_coordinate, get_serialized_coordinate_buffer_ptr, get_serialized_coordinate_buffer_size;
 let num_particles;
 let set_num_particles;
+
+// 
 let stats;
-let mesh;
 const n = 2000;
 let balls = [];
 
-const use_instanced_mesh = false;
-//const use_instanced_mesh = true;
+//const use_instanced_mesh = false;
+const use_instanced_mesh = true;
+
+const run_controller = {
+	initialize_flag: false,
+	start: function() {
+		this.initialize_flag = true;
+	},
+	start_done: function() {
+		this.initialize_flag = false;
+	}
+};
 
 createModule().then((Module) => {
 	InitSPH = Module.InitSPH;
@@ -73,6 +87,11 @@ createModule().then((Module) => {
 		stats = new Stats();
 		stats.showPanel(0);
 		document.body.appendChild(stats.dom);
+	}
+
+	function setup_gui() {
+		const gui = new GUI();
+		gui.add(run_controller, 'start').name('Start');
 	}
 
 	function setup_helper() {
@@ -138,11 +157,16 @@ createModule().then((Module) => {
 		setup_balls();
 		update_ball_positions();
 	}
+	setup_gui();
 	//balls = []
 
 	animate();
 
 	function animate() {
+		if (run_controller.initialize_flag == true) {
+			InitSPH();
+			run_controller.start_done();
+		}
 		for(let i = 0; i < 10; i++) {
 			ComputeDensityPressure();
 			ComputeForces();

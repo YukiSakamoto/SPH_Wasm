@@ -60,7 +60,7 @@ size_t get_rho_buffer_size() {
 const static int WINDOW_WIDTH = 800;
 const static int WINDOW_HEIGHT = 600;
 const static float VIEW_WIDTH = 1.5 * float(WINDOW_WIDTH);
-const static float VIEW_HEIGHT= 1.5 * float(WINDOW_HEIGHT);
+const static float VIEW_HEIGHT= 15 * float(WINDOW_HEIGHT);
 
 const static Eigen::Vector2d G(0.f, -10.f);
 const static float REST_DENS = 300.f;
