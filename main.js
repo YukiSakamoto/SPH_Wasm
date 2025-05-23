@@ -14,18 +14,18 @@ let mesh;	// instanced mesh
 // Emscripten Exported Function
 let InitSPH, Integrate, ComputeForces, ComputeDensityPressure;
 let init_serialized_coordinate, get_serialized_coordinate_buffer_ptr, get_serialized_coordinate_buffer_size;
-let num_particles;
+let get_num_particles;
 let set_num_particles;
 
 // 
 let stats;
-const n = 2000;
 let balls = [];
 
 //const use_instanced_mesh = false;
 const use_instanced_mesh = true;
 
 const run_controller = {
+	num_particles: 2000,
 	initialize_flag: false,
 	start: function() {
 		this.initialize_flag = true;
@@ -43,10 +43,10 @@ createModule().then((Module) => {
 	init_serialized_coordinate = Module.init_serialized_coordinate;
 	get_serialized_coordinate_buffer_ptr = Module.get_serialized_coordinate_buffer_ptr;
 	get_serialized_coordinate_buffer_size = Module.get_serialized_coordinate_buffer_size;
-	num_particles = Module.num_particles;
+	get_num_particles = Module.get_num_particles;
 	set_num_particles = Module.set_num_particles;
 
-	set_num_particles(n);
+	set_num_particles(run_controller.num_particles);
 	InitSPH();
 	console.log("InitSPH done!");
 	init_serialized_coordinate();
@@ -91,6 +91,7 @@ createModule().then((Module) => {
 
 	function setup_gui() {
 		const gui = new GUI();
+		gui.add(run_controller, 'num_particles').name("Number of Particles");
 		gui.add(run_controller, 'start').name('Start');
 	}
 
@@ -102,6 +103,9 @@ createModule().then((Module) => {
 	}
 
 	function setup_balls() {
+		if (0 < balls.length) {
+			balls.splice(0);
+		}
 		for(let i = 0; i < n; i++) {
 			let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
 			let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
@@ -111,6 +115,7 @@ createModule().then((Module) => {
 		}
 	}
 	function update_ball_positions() {
+		let n = get_num_particles();
 		for(let i = 0; i < n; i++) {
 			let x = coordinateArray[i*3+0]; //300;
 			let y = coordinateArray[i*3+1]; //300;
@@ -120,10 +125,16 @@ createModule().then((Module) => {
 			y /= 100;
 			z /= 100;
 			x -= 5;
+			//z -= 5;
 			balls[i].position.set(x, y, z);
 		}
 	}
 	function setup_instanced_mesh() {
+		if (mesh instanceof THREE.InstancedMesh) {
+			console.log('dispose');
+			mesh.dispose();
+		}
+		let n = get_num_particles();
 		let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
 		let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
 		mesh = new THREE.InstancedMesh(ball_geometry, ball_material, n);
@@ -132,6 +143,7 @@ createModule().then((Module) => {
 	function update_instanced_mesh_positions() {
 		const dummy = new THREE.Object3D();
 		console.log('instanced mesh');
+		let n = get_num_particles();
 		for(let i = 0; i < n; i++) {
 			let x = coordinateArray[i*3+0];
 			let y = coordinateArray[i*3+1];
@@ -140,6 +152,7 @@ createModule().then((Module) => {
 			y /= 100;
 			z /= 100;
 			x -= 5;
+			z -= 5;
 			dummy.position.set(x, y, z)
 			dummy.updateMatrix();
 			mesh.setMatrixAt(i, dummy.matrix)
@@ -164,8 +177,14 @@ createModule().then((Module) => {
 
 	function animate() {
 		if (run_controller.initialize_flag == true) {
+			set_num_particles(run_controller.num_particles);
 			InitSPH();
 			run_controller.start_done();
+			if (use_instanced_mesh == true) {
+				setup_instanced_mesh();
+			} else {
+				setup_balls();
+			}
 		}
 		for(let i = 0; i < 10; i++) {
 			ComputeDensityPressure();

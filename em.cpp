@@ -10,10 +10,10 @@
 
 struct Particle
 {
-    Particle(float x, float y): r(x,y), v(0.0, 0.0), f(0.0, 0.0), rho(0.0), p(0.0){;}
-    Eigen::Vector2d r;
-    Eigen::Vector2d v;
-    Eigen::Vector2d f;
+    Particle(float x, float y, float z): r(x,y,z), v(0.0, 0.0, 0.0), f(0.0, 0.0, 0.0), rho(0.0), p(0.0){;}
+    Eigen::Vector3d r;
+    Eigen::Vector3d v;
+    Eigen::Vector3d f;
     float rho, p;
     double getX(){return r[0];}
     double getY(){return r[1];}
@@ -28,7 +28,7 @@ void init_serialized_coordinate(void){
     for(const auto &ptcl: particles) {
         serialized_coordinate.push_back(float(ptcl.r[0]));
         serialized_coordinate.push_back(float(ptcl.r[1]));
-        serialized_coordinate.push_back(float(0.0));
+        serialized_coordinate.push_back(float(ptcl.r[2]));
     }
     std::printf("%s: size: %d", __func__, serialized_coordinate.size());
 }
@@ -39,7 +39,7 @@ uintptr_t get_serialized_coordinate_buffer_ptr() {
 size_t get_serialized_coordinate_buffer_size() {
     return serialized_coordinate.size();
 }
-size_t num_particles() {
+size_t get_num_particles() {
     return particles.size();
 }
 std::vector<float> rho_buffer;
@@ -62,7 +62,7 @@ const static int WINDOW_HEIGHT = 600;
 const static float VIEW_WIDTH = 1.5 * float(WINDOW_WIDTH);
 const static float VIEW_HEIGHT= 15 * float(WINDOW_HEIGHT);
 
-const static Eigen::Vector2d G(0.f, -10.f);
+const static Eigen::Vector3d G(0.f, -10.f, 0.f);
 const static float REST_DENS = 300.f;
 const static float GAS_CONST = 2000.f;  // const for eq of state
 const static float H = 16.f;            // kernel radius
@@ -90,16 +90,22 @@ void InitSPH(void)
 {
     particles.clear();
     //const size_t num_particles_limit = 3000;
+    //float z = 0.0;
     for(float y = EPS; y < VIEW_HEIGHT - EPS * 2.0; y += H) {
-        for(float x = VIEW_WIDTH/ 4; x <= VIEW_WIDTH / 2; x += H) {
-        //for(float x = VIEW_WIDTH/ 4; x <= VIEW_WIDTH *3 / 4; x += H) {
-            if (particles.size() < num_particles_limit) {
-                //float jitter = static_cast<float>(arc4random())/static_cast<float>(RAND_MAX);
-                float jitter = static_cast<float>(rand())/static_cast<float>(RAND_MAX);
-                particles.push_back(Particle(x+jitter, y));
-            } else {
-                break;
+        for(float z = VIEW_WIDTH/4; z <= VIEW_WIDTH/2; z+=H) {
+
+            for(float x = VIEW_WIDTH/ 4; x <= VIEW_WIDTH / 2; x += H) {
+            //for(float x = VIEW_WIDTH/ 4; x <= VIEW_WIDTH *3 / 4; x += H) {
+                if (particles.size() < num_particles_limit) {
+                    //float jitter = static_cast<float>(arc4random())/static_cast<float>(RAND_MAX);
+                    float jitter = static_cast<float>(rand())/static_cast<float>(RAND_MAX);
+                    float jitter2 = static_cast<float>(rand())/static_cast<float>(RAND_MAX);
+                    particles.push_back(Particle(x+jitter, y, z+jitter2));
+                } else {
+                    break;
+                }
             }
+
         }
     }
     std::printf("From InitSPH: %d particles initialized", particles.size());
@@ -114,7 +120,7 @@ void ComputeDensityPressure(void)
         Particle &pi = particles[i];
         pi.rho = 0.0;
         for(auto &pj : particles) {
-            Eigen::Vector2d rij = pj.r - pi.r;
+            Eigen::Vector3d rij = pj.r - pi.r;
             float r2 = rij.squaredNorm();
 
             if (r2 < HSQ) {
@@ -131,20 +137,20 @@ void ComputeForces(void)
     #pragma omp parallel for
     for(size_t i = 0; i < particles.size(); i++) {
         Particle &pi = particles[i];
-        Eigen::Vector2d fpress(0.f, 0.f);
-        Eigen::Vector2d fvisc(0.f, 0.f);
+        Eigen::Vector3d fpress(0.f, 0.f, 0.f);
+        Eigen::Vector3d fvisc(0.f, 0.f, 0.f);
         for(auto &pj : particles) {
             if (&pi == &pj){
                 continue;
             }
-            Eigen::Vector2d rij = pj.r - pi.r;
+            Eigen::Vector3d rij = pj.r - pi.r;
             float r = rij.norm();
             if (r < H) {
                 fpress += -rij.normalized() * MASS * (pi.p + pj.p) / (2.f * pj.rho) * SPIKY_GRAD * pow(H - r, 3.f);
                 fvisc += VISC * MASS * (pj.v - pi.v) / pj.rho * VISC_LAP * (H-r);
             }
         }
-        Eigen::Vector2d fgrav = G*MASS / pi.rho;
+        Eigen::Vector3d fgrav = G*MASS / pi.rho;
         pi.f = fpress + fvisc + fgrav;
     }
 }
@@ -173,6 +179,15 @@ void Integrate(void)
             p.v(1) *= BOUND_DAMPING;
             p.r(1) = VIEW_HEIGHT - EPS;
         }
+
+        if (p.r(2) - EPS < 0.f){
+            p.v(2) *= BOUND_DAMPING;
+            p.r(2) = EPS;
+        }
+        if (p.r(2) + EPS > VIEW_WIDTH / 4) {
+            p.v(2) *= BOUND_DAMPING;
+            p.r(2) = VIEW_WIDTH/4 - EPS;
+        }
     }
 }
 
@@ -185,10 +200,10 @@ EMSCRIPTEN_BINDINGS(my_module) {
     emscripten::function("init_serialized_coordinate", &init_serialized_coordinate);
     emscripten::function("get_serialized_coordinate_buffer_ptr", &get_serialized_coordinate_buffer_ptr);
     emscripten::function("get_serialized_coordinate_buffer_size", &get_serialized_coordinate_buffer_size);
-    emscripten::function("num_particles", &num_particles);
+    emscripten::function("get_num_particles", &get_num_particles);
     emscripten::function("set_num_particles", &set_num_particles);
     emscripten::class_<Particle>("Particle")
-        .constructor<float, float>()
+        .constructor<float, float, float>()
         .function("getX", &Particle::getX)
         .function("getY", &Particle::getY);
 }
