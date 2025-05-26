@@ -27,6 +27,12 @@ const use_instanced_mesh = true;
 const run_controller = {
 	num_particles: 2000,
 	initialize_flag: false,
+	x_scale: 0.01,
+	y_scale: 0.01,
+	z_scale: 0.01,
+	x_shift: -5, 
+	y_shift: 0,
+	z_shift: 0,
 	start: function() {
 		this.initialize_flag = true;
 	},
@@ -91,6 +97,14 @@ createModule().then((Module) => {
 
 	function setup_gui() {
 		const gui = new GUI();
+		const folder = gui.addFolder('view settings');
+		folder.add(run_controller, 'x_scale').name('x scale factor');
+		folder.add(run_controller, 'y_scale').name('y scale factor');
+		folder.add(run_controller, 'z_scale').name('z scale factor');
+		folder.add(run_controller, 'x_shift').name('x shift after scaling');
+		folder.add(run_controller, 'y_shift').name('y shift after scaling');
+		folder.add(run_controller, 'z_shift').name('z shift after scaling');
+
 		gui.add(run_controller, 'num_particles').name("Number of Particles");
 		gui.add(run_controller, 'start').name('Start');
 	}
@@ -121,10 +135,12 @@ createModule().then((Module) => {
 			let y = coordinateArray[i*3+1]; //300;
 			let z = coordinateArray[i*3+2]; //300;
 			//console.log(x)
-			x /= 100;
-			y /= 100;
-			z /= 100;
-			x -= 5;
+			x *= run_controller.x_scale;
+			y *= run_controller.y_scale;
+			z *= run_controller.z_scale;
+			x += run_controller.x_shift;
+			y += run_controller.y_shift;
+			z += run_controller.z_shift;
 			//z -= 5;
 			balls[i].position.set(x, y, z);
 		}
@@ -148,11 +164,13 @@ createModule().then((Module) => {
 			let x = coordinateArray[i*3+0];
 			let y = coordinateArray[i*3+1];
 			let z = coordinateArray[i*3+2];
-			x /= 100;
-			y /= 100;
-			z /= 100;
-			x -= 5;
-			z -= 5;
+			x *= run_controller.x_scale;
+			y *= run_controller.y_scale;
+			z *= run_controller.z_scale;
+			x += run_controller.x_shift;
+			y += run_controller.y_shift;
+			z += run_controller.z_shift;
+			//z -= 5;
 			dummy.position.set(x, y, z)
 			dummy.updateMatrix();
 			mesh.setMatrixAt(i, dummy.matrix)
