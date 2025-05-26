@@ -60,7 +60,7 @@ size_t get_rho_buffer_size() {
 const static int WINDOW_WIDTH = 800;
 const static int WINDOW_HEIGHT = 600;
 const static float VIEW_WIDTH = 1.5 * float(WINDOW_WIDTH);
-const static float VIEW_HEIGHT= 15 * float(WINDOW_HEIGHT);
+const static float VIEW_HEIGHT= 1.5 * float(WINDOW_HEIGHT);
 
 const static Eigen::Vector3d G(0.f, -10.f, 0.f);
 const static float REST_DENS = 300.f;
@@ -73,9 +73,13 @@ const static float DT = 0.0007f;    // integration timestep
 
 // smoothing kernels defined in Müller and their gradients
 // adapted to 2D per "SPH Based Shallow Water Simulation" by Solenthaler et al.
-const static float POLY6 = 4.f / (M_PI * pow(H, 8.f));
-const static float SPIKY_GRAD = -10.f / (M_PI * pow(H, 5.f));
-const static float VISC_LAP = 40.f / (M_PI * pow(H, 5.f));
+// const static float POLY6 = 4.f / (M_PI * pow(H, 8.f));
+// const static float SPIKY_GRAD = -10.f / (M_PI * pow(H, 5.f));
+// const static float VISC_LAP = 40.f / (M_PI * pow(H, 5.f));
+
+const static float POLY6 = 315.f / (64.f * M_PI * pow(H, 9.f));
+const static float SPIKY_GRAD = -45.f / (M_PI * pow(H, 6.f));
+const static float VISC_LAP = 45.f / (M_PI * pow(H, 6.f));
 
 // simulation parameters
 const static float EPS = H; // boundary epsilon
