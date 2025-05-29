@@ -12,14 +12,11 @@ let xyz_geometry;
 let mesh;	// instanced mesh
 
 // Emscripten Exported Function
-let InitSPH, Integrate, ComputeForces, ComputeDensityPressure;
-let init_serialized_coordinate, get_serialized_coordinate_buffer_ptr, get_serialized_coordinate_buffer_size;
-let get_num_particles;
-let set_num_particles;
 
 // 
 let stats;
 let balls = [];
+let sim;	// simulation object;
 
 //const use_instanced_mesh = false;
 const use_instanced_mesh = true;
@@ -33,6 +30,7 @@ const run_controller = {
 	x_shift: -5, 
 	y_shift: 0,
 	z_shift: 0,
+	sphere_scale: 1.0,
 	start: function() {
 		this.initialize_flag = true;
 	},
@@ -42,26 +40,6 @@ const run_controller = {
 };
 
 createModule().then((Module) => {
-	InitSPH = Module.InitSPH;
-	Integrate = Module.Integrate;
-	ComputeForces = Module.ComputeForces;
-	ComputeDensityPressure = Module.ComputeDensityPressure;
-	init_serialized_coordinate = Module.init_serialized_coordinate;
-	get_serialized_coordinate_buffer_ptr = Module.get_serialized_coordinate_buffer_ptr;
-	get_serialized_coordinate_buffer_size = Module.get_serialized_coordinate_buffer_size;
-	get_num_particles = Module.get_num_particles;
-	set_num_particles = Module.set_num_particles;
-
-	set_num_particles(run_controller.num_particles);
-	InitSPH();
-	console.log("InitSPH done!");
-	init_serialized_coordinate();
-	coordinateArray = new Float32Array(Module.HEAPF32.buffer, get_serialized_coordinate_buffer_ptr(), get_serialized_coordinate_buffer_size());
-	console.log(coordinateArray);
-	console.log("size: " + get_serialized_coordinate_buffer_size());
-	console.log(coordinateArray.length);
-	console.log(get_serialized_coordinate_buffer_ptr());
-
 	function setup_three() {
 		console.log("setup Scene");
 		scene = new THREE.Scene();
@@ -150,7 +128,7 @@ createModule().then((Module) => {
 			console.log('dispose');
 			mesh.dispose();
 		}
-		let n = get_num_particles();
+		let n = sim.get_num_particles();
 		let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
 		let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
 		mesh = new THREE.InstancedMesh(ball_geometry, ball_material, n);
@@ -158,8 +136,7 @@ createModule().then((Module) => {
 	}
 	function update_instanced_mesh_positions() {
 		const dummy = new THREE.Object3D();
-		console.log('instanced mesh');
-		let n = get_num_particles();
+		let n = sim.get_num_particles();
 		for(let i = 0; i < n; i++) {
 			let x = coordinateArray[i*3+0];
 			let y = coordinateArray[i*3+1];
@@ -178,9 +155,21 @@ createModule().then((Module) => {
 		mesh.instanceMatrix.needsUpdate = true;
 	}
 
+	function setup_simulation() {
+		if (sim instanceof Module.SPHSimulator) { sim.delete(); }
+		sim = new Module.SPHSimulator(run_controller.num_particles);
+		sim.init_simulation(true);
+		coordinateArray = new Float32Array(
+			Module.HEAPF32.buffer, 
+			sim.get_serialized_coordinate_buffer_ptr(), 
+			sim.get_serialized_coordinate_buffer_size()
+		);
+	}
+
 	setup_three();
 	setup_stats();
 	setup_helper();
+	setup_simulation();
 	if (use_instanced_mesh == true) {
 		setup_instanced_mesh();
 		update_instanced_mesh_positions();
@@ -195,8 +184,7 @@ createModule().then((Module) => {
 
 	function animate() {
 		if (run_controller.initialize_flag == true) {
-			set_num_particles(run_controller.num_particles);
-			InitSPH();
+			setup_simulation();
 			run_controller.start_done();
 			if (use_instanced_mesh == true) {
 				setup_instanced_mesh();
@@ -204,13 +192,8 @@ createModule().then((Module) => {
 				setup_balls();
 			}
 		}
-		for(let i = 0; i < 10; i++) {
-			ComputeDensityPressure();
-			ComputeForces();
-			Integrate();
-		}
-		init_serialized_coordinate();
-		console.log('calculation done');
+		const nstep = 1;
+		sim.step(nstep, true);
 		if (use_instanced_mesh == true) {
 			update_instanced_mesh_positions();
 	 	} else {

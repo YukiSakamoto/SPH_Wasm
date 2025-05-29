@@ -15,3 +15,6 @@ out:
 		-s ALLOW_MEMORY_GROWTH=1 \
 		-s EXPORTED_RUNTIME_METHODS=['HEAPF32'] \
 		-msimd128
+
+native:
+	g++ em.cpp -o em.x  -O3 
