@@ -101,7 +101,9 @@ struct SPHParams {
 
 struct SPHSimulator {
     SPHSimulator(size_t num_particles):
-    num_particles(num_particles)
+    num_particles(num_particles), dt(DT), time(0.0), 
+    x_limit(VIEW_WIDTH), y_limit(VIEW_HEIGHT), z_limit(VIEW_WIDTH),
+    rho0(REST_DENS), mass(MASS), stiffness(GAS_CONST), h(H), dx(H)
     {}
         //x_limit(VIEW_WIDTH), y_limit(VIEW_HEIGHT), z_limit(VIEW_WIDTH),
         //h(H), rho0(REST_DENS), mass(MASS), stiffness(GAS_CONST), dt(DT)
@@ -114,14 +116,15 @@ struct SPHSimulator {
 
 
     void init_simulation(bool serialize_coordinate = false){
+        this->time = 0;
         this->particles.clear();
         //const size_t num_particles_limit = 3000;
         //float z = 0.0;
         srand(0);
-        for(float y = EPS; y < VIEW_HEIGHT - EPS * 2.0; y += H) {
-            for(float z = VIEW_WIDTH/4; z <= VIEW_WIDTH/2; z+=H) {
+        for(float y = EPS; y < this->y_limit - EPS * 2.0; y += dx) {
+            for(float z = this->z_limit/4; z <= this->z_limit/2; z+=dx) {
 
-                for(float x = VIEW_WIDTH/ 4; x <= VIEW_WIDTH / 2; x += H) {
+                for(float x = this->x_limit/ 4; x <= this->x_limit / 2; x += dx) {
                 //for(float x = VIEW_WIDTH/ 4; x <= VIEW_WIDTH *3 / 4; x += H) {
                     if (this->particles.size() < this->num_particles) {
                         //float jitter = static_cast<float>(arc4random())/static_cast<float>(RAND_MAX);
@@ -153,6 +156,7 @@ struct SPHSimulator {
         }
     }
     void compute_density_pressure(void) {
+        float hsq = std::pow(this->h, 2);
         #pragma omp parallel for
         for(size_t i = 0; i < this->particles.size(); i++) {
             Particle &pi = this->particles[i];
@@ -161,11 +165,11 @@ struct SPHSimulator {
                 Eigen::Vector3d rij = pj.r - pi.r;
                 float r2 = rij.squaredNorm();
 
-                if (r2 < HSQ) {
-                    pi.rho += MASS * POLY6 * pow(HSQ-r2, 3.f);
+                if (r2 < hsq) {
+                    pi.rho += this->mass * POLY6 * pow(hsq-r2, 3.f);
                 }
             }
-            pi.p = GAS_CONST * (pi.rho - REST_DENS);
+            pi.p = this->stiffness * (pi.rho - this->rho0);
         }
     }
     void compute_forces(void) {
@@ -180,12 +184,12 @@ struct SPHSimulator {
                 }
                 Eigen::Vector3d rij = pj.r - pi.r;
                 float r = rij.norm();
-                if (r < H) {
-                    fpress += -rij.normalized() * MASS * (pi.p + pj.p) / (2.f * pj.rho) * SPIKY_GRAD * pow(H - r, 3.f);
-                    fvisc += VISC * MASS * (pj.v - pi.v) / pj.rho * VISC_LAP * (H-r);
+                if (r < this->h) {
+                    fpress += -rij.normalized() * this->mass * (pi.p + pj.p) / (2.f * pj.rho) * SPIKY_GRAD * pow(this->h - r, 3.f);
+                    fvisc += VISC * this->mass * (pj.v - pi.v) / pj.rho * VISC_LAP * (this->h -r);
                 }
             }
-            Eigen::Vector3d fgrav = G*MASS / pi.rho;
+            Eigen::Vector3d fgrav = G*this->mass / pi.rho;
             pi.f = fpress + fvisc + fgrav;
         }
 
@@ -194,32 +198,33 @@ struct SPHSimulator {
         #pragma omp parallel for
         for(size_t i = 0; i < this->particles.size(); i++) {
             Particle &p = this->particles[i];
-            p.v += DT * p.f / p.rho;
-            p.r += DT * p.v;
+            p.v += this->dt * p.f / p.rho;
+            p.r += this->dt * p.v;
+            this->time += dt;
             if (p.r(0) - EPS < 0.f){
                 p.v(0) *= BOUND_DAMPING;
                 p.r(0) = EPS;
             }
-            if (p.r(0) + EPS > VIEW_WIDTH) {
+            if (p.r(0) + EPS > this->x_limit) {
                 p.v(0) *= BOUND_DAMPING;
-                p.r(0) = VIEW_WIDTH - EPS;
+                p.r(0) = this->x_limit - EPS;
             }
             if (p.r(1) - EPS < 0.f){
                 p.v(1) *= BOUND_DAMPING;
                 p.r(1) = EPS;
             }
-            if (p.r(1) + EPS > VIEW_HEIGHT) {
+            if (p.r(1) + EPS > this->y_limit) {
                 p.v(1) *= BOUND_DAMPING;
-                p.r(1) = VIEW_HEIGHT - EPS;
+                p.r(1) = this->y_limit - EPS;
             }
 
             if (p.r(2) - EPS < 0.f){
                 p.v(2) *= BOUND_DAMPING;
                 p.r(2) = EPS;
             }
-            if (p.r(2) + EPS > VIEW_WIDTH / 4) {
+            if (p.r(2) + EPS > this->z_limit / 4) {
                 p.v(2) *= BOUND_DAMPING;
-                p.r(2) = VIEW_WIDTH/4 - EPS;
+                p.r(2) = this->z_limit/4 - EPS;
             }
         }
     }
@@ -238,11 +243,21 @@ struct SPHSimulator {
         return reinterpret_cast<uintptr_t>(this->serialized_coordinates.data());
     }
     size_t get_serialized_coordinate_buffer_size() {
+
         return this->serialized_coordinates.size();
     }
     std::vector<Particle> particles;
     size_t num_particles;
     std::vector<float> serialized_coordinates;
+
+    float dt;
+    float time;
+    float x_limit, y_limit, z_limit;
+    float rho0;
+    float mass;
+    float stiffness;
+    float h;
+    float dx;
 };
 
 void InitSPH(void)
