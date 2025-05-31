@@ -24,19 +24,43 @@ const use_instanced_mesh = true;
 const run_controller = {
 	num_particles: 2000,
 	initialize_flag: false,
+	run_flag: false,
+	stop_soon: false,
+	n_steps: 1,
 	x_scale: 0.01,
 	y_scale: 0.01,
 	z_scale: 0.01,
-	x_shift: -5, 
+	x_shift: 0, 
 	y_shift: 0,
 	z_shift: 0,
 	sphere_scale: 1.0,
+	num_forward: 1,
+	num_forward_actual: 1,
 	start: function() {
 		this.initialize_flag = true;
 	},
 	start_done: function() {
 		this.initialize_flag = false;
+	},
+	step_forward: function () {
+		this.num_forward_actual = this.num_forward;
+		this.run_flag = true;
+	},
+	stop: function() {
+		this.run_flag = false;
 	}
+};
+
+const sph_params = {
+	x_limit: 0.2,
+	y_limit: 0.2,
+	z_limit: 0.2,
+	rho0: 1000.0, //[kg/m3]
+	h: 0.026, // m	// stiffness
+	mass: 8.0e-3,	// [kg]
+	stiffness: 10000,	// [Pa]
+	dt: 0.001,	// [s]
+	dx: 0.02,	// [m]
 };
 
 createModule().then((Module) => {
@@ -85,6 +109,29 @@ createModule().then((Module) => {
 
 		gui.add(run_controller, 'num_particles').name("Number of Particles");
 		gui.add(run_controller, 'start').name('Start');
+		gui.add(run_controller, 'step_forward').name('Step Forward');
+		gui.add(run_controller, 'stop').name('Stop');
+		gui.add(run_controller, 'num_forward').name('Number of steps');
+		//gui.add(run_controller, "run_flag").name('Run');
+		gui.add(run_controller, 'n_steps').name('n_steps');
+
+		const folder_sph_params = gui.addFolder('SPH Parameters');
+		folder_sph_params.add(sph_params, 'x_limit').name('x_limit [m]').onChange(value => {
+			console.log('x_limit');
+			//sim.x_limit = value;
+		});
+		folder_sph_params.add(sph_params, 'y_limit').name('y_limit [m]').onChange(value => {
+			console.log('y_limit');
+			//sim.y_limit = value;
+		});
+		folder_sph_params.add(sph_params, 'z_limit').name('z_limit [m]');
+		folder_sph_params.add(sph_params, 'dx').name('dx [m]');
+		folder_sph_params.add(sph_params, 'dt').name('dt [s]');
+		folder_sph_params.add(sph_params, 'rho0').name('rho0 [kg/m^3]');
+		folder_sph_params.add(sph_params, 'h').name('h [m]');
+		folder_sph_params.add(sph_params, 'mass').name('mass [kg]');
+		folder_sph_params.add(sph_params, 'stiffness').name('stiffness [Pa]');
+
 	}
 
 	function setup_helper() {
@@ -132,11 +179,13 @@ createModule().then((Module) => {
 		let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
 		let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
 		mesh = new THREE.InstancedMesh(ball_geometry, ball_material, n);
+		console.log(sim.x_limit, sim.y_limit, sim.z_limit);
 		scene.add(mesh);
 	}
 	function update_instanced_mesh_positions() {
 		const dummy = new THREE.Object3D();
 		let n = sim.get_num_particles();
+		console.log(n);
 		for(let i = 0; i < n; i++) {
 			let x = coordinateArray[i*3+0];
 			let y = coordinateArray[i*3+1];
@@ -158,7 +207,20 @@ createModule().then((Module) => {
 	function setup_simulation() {
 		if (sim instanceof Module.SPHSimulator) { sim.delete(); }
 		sim = new Module.SPHSimulator(run_controller.num_particles);
+
+		//sim.x_limit = sph_params.x_limit;
+		//sim.y_limit = sph_params.y_limit;
+		//sim.z_limit = sph_params.z_limit;
+		//sim.rho0 = sph_params.rho0;
+		//sim.h = sph_params.h;
+		//sim.mass = sph_params.mass;
+		//sim.stiffness = sph_params.stiffness;
+		//sim.dt = sph_params.dt;
+		//sim.dx = sph_params.dx;
+		//sim.epsilon = sph_params.h;
+
 		sim.init_simulation(true);
+		console.log(sim.get_num_particles());
 		coordinateArray = new Float32Array(
 			Module.HEAPF32.buffer, 
 			sim.get_serialized_coordinate_buffer_ptr(), 
@@ -169,7 +231,16 @@ createModule().then((Module) => {
 	setup_three();
 	setup_stats();
 	setup_helper();
+	setup_gui();
 	setup_simulation();
+	//const box_geometry = new THREE.BoxGeometry(sim.x_limit * run_controller.x_scale, sim.y_limit * run_controller.y_scale, sim.z_limit * run_controller.z_scale);
+	const box_geometry = new THREE.BoxGeometry(sim.x_limit, sim.y_limit, sim.z_limit);
+	console.log(sim.x_limit, sim.y_limit, sim.z_limit);
+	const box_edges = new THREE.EdgesGeometry(box_geometry);
+	// 線として描画（白線など）
+	const box_material = new THREE.LineBasicMaterial({ color: 0xffffff });
+	const wireframe = new THREE.LineSegments(box_edges, box_material);
+	scene.add(wireframe);
 	if (use_instanced_mesh == true) {
 		setup_instanced_mesh();
 		update_instanced_mesh_positions();
@@ -177,12 +248,16 @@ createModule().then((Module) => {
 		setup_balls();
 		update_ball_positions();
 	}
-	setup_gui();
 	//balls = []
 
 	animate();
 
 	function animate() {
+		wireframe.position.set(
+			sim.x_limit * run_controller.x_scale / 2.0, 
+			sim.y_limit * run_controller.y_scale / 2.0, 
+			sim.z_limit * run_controller.z_scale / 2.0 );
+		wireframe.scale.set(run_controller.x_scale, run_controller.y_scale, run_controller.z_scale);
 		if (run_controller.initialize_flag == true) {
 			setup_simulation();
 			run_controller.start_done();
@@ -192,12 +267,28 @@ createModule().then((Module) => {
 				setup_balls();
 			}
 		}
-		const nstep = 1;
-		sim.step(nstep, true);
+		if (run_controller.run_flag == true) {
+			if (0 == run_controller.num_forward_actual) {
+				run_controller.run_flag = false;
+				console.log('stop');
+			} else if (0 < run_controller.num_forward_actual) {
+				sim.step(run_controller.n_steps, true);
+				run_controller.num_forward_actual -= 1;
+				console.log('Rest');
+				console.log(run_controller.num_forward_actual);
+			} else if (-1 == run_controller.num_forward_actual) {
+				sim.step(run_controller.n_steps, true);
+				console.log('inf');
+			}
+		}
+
 		if (use_instanced_mesh == true) {
 			update_instanced_mesh_positions();
-	 	} else {
+		} else {
 			update_ball_positions();
+		}
+		if (run_controller.stop_soon == true) {
+			run_controller.run_flag = false;
 		}
 	requestAnimationFrame(animate);
 	cube.rotation.x += 0.01;
