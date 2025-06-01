@@ -27,9 +27,9 @@ const run_controller = {
 	run_flag: false,
 	stop_soon: false,
 	n_steps: 1,
-	x_scale: 0.01,
-	y_scale: 0.01,
-	z_scale: 0.01,
+	x_scale: 20.0,
+	y_scale: 20.0,
+	z_scale: 20.0,
 	x_shift: 0, 
 	y_shift: 0,
 	z_shift: 0,
@@ -52,15 +52,28 @@ const run_controller = {
 };
 
 const sph_params = {
-	x_limit: 0.2,
-	y_limit: 0.2,
-	z_limit: 0.2,
-	rho0: 1000.0, //[kg/m3]
-	h: 0.026, // m	// stiffness
-	mass: 8.0e-3,	// [kg]
-	stiffness: 10000,	// [Pa]
-	dt: 0.001,	// [s]
-	dx: 0.02,	// [m]
+	//x_limit: 0.2,
+	//y_limit: 0.2,
+	//z_limit: 0.2,
+	//rho0: 1000.0, //[kg/m3]
+	//h: 0.026, // m	// stiffness
+	//mass: 8.0e-3,	// [kg]
+	//stiffness: 10000,	// [Pa]
+	//dt: 0.001,	// [s]
+	//dx: 0.02,	// [m]
+	//visc: 300.0,	// [m]
+	//epsilon: 0.01,
+	x_limit: 1.0,
+	y_limit: 2.0,
+	z_limit: 1.0,
+	rho0: 15000.0, //[kg/m3]
+	h: 0.07, // m	// stiffness
+	mass: 1.0,	// [kg]
+	stiffness: 20,	// [Pa]
+	dt: 0.006,	// [s]
+	dx: 0.04,	// [m]
+	visc: 100.0,	// [m]
+	epsilon: 0.01,
 };
 
 createModule().then((Module) => {
@@ -131,6 +144,7 @@ createModule().then((Module) => {
 		folder_sph_params.add(sph_params, 'h').name('h [m]');
 		folder_sph_params.add(sph_params, 'mass').name('mass [kg]');
 		folder_sph_params.add(sph_params, 'stiffness').name('stiffness [Pa]');
+		folder_sph_params.add(sph_params, 'visc').name('viscocity constant');
 
 	}
 
@@ -208,16 +222,17 @@ createModule().then((Module) => {
 		if (sim instanceof Module.SPHSimulator) { sim.delete(); }
 		sim = new Module.SPHSimulator(run_controller.num_particles);
 
-		//sim.x_limit = sph_params.x_limit;
-		//sim.y_limit = sph_params.y_limit;
-		//sim.z_limit = sph_params.z_limit;
-		//sim.rho0 = sph_params.rho0;
-		//sim.h = sph_params.h;
-		//sim.mass = sph_params.mass;
-		//sim.stiffness = sph_params.stiffness;
-		//sim.dt = sph_params.dt;
-		//sim.dx = sph_params.dx;
-		//sim.epsilon = sph_params.h;
+		sim.x_limit = sph_params.x_limit;
+		sim.y_limit = sph_params.y_limit;
+		sim.z_limit = sph_params.z_limit;
+		sim.rho0 = sph_params.rho0;
+		sim.h = sph_params.h;
+		sim.mass = sph_params.mass;
+		sim.stiffness = sph_params.stiffness;
+		sim.dt = sph_params.dt;
+		sim.dx = sph_params.dx;
+		sim.epsilon = sph_params.epsilon;
+		sim.visc = sph_params.visc;
 
 		sim.init_simulation(true);
 		console.log(sim.get_num_particles());
@@ -234,8 +249,9 @@ createModule().then((Module) => {
 	setup_gui();
 	setup_simulation();
 	//const box_geometry = new THREE.BoxGeometry(sim.x_limit * run_controller.x_scale, sim.y_limit * run_controller.y_scale, sim.z_limit * run_controller.z_scale);
-	const box_geometry = new THREE.BoxGeometry(sim.x_limit, sim.y_limit, sim.z_limit);
-	console.log(sim.x_limit, sim.y_limit, sim.z_limit);
+	//const box_geometry = new THREE.BoxGeometry(sim.x_limit, sim.y_limit, sim.z_limit);
+	const box_geometry = new THREE.BoxGeometry(1.0, 1.0, 1.0);
+	//console.log(sim.x_limit, sim.y_limit, sim.z_limit);
 	const box_edges = new THREE.EdgesGeometry(box_geometry);
 	// 線として描画（白線など）
 	const box_material = new THREE.LineBasicMaterial({ color: 0xffffff });
@@ -253,11 +269,14 @@ createModule().then((Module) => {
 	animate();
 
 	function animate() {
+		wireframe.scale.set(
+			sim.x_limit * run_controller.x_scale, 
+			sim.y_limit * run_controller.y_scale, 
+			sim.z_limit * run_controller.z_scale);
 		wireframe.position.set(
 			sim.x_limit * run_controller.x_scale / 2.0, 
 			sim.y_limit * run_controller.y_scale / 2.0, 
 			sim.z_limit * run_controller.z_scale / 2.0 );
-		wireframe.scale.set(run_controller.x_scale, run_controller.y_scale, run_controller.z_scale);
 		if (run_controller.initialize_flag == true) {
 			setup_simulation();
 			run_controller.start_done();

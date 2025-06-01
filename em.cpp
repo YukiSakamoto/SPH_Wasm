@@ -56,8 +56,8 @@ struct SPHSimulator {
     SPHSimulator(size_t num_particles):
     num_particles(num_particles), dt(DT), time(0.0), 
     x_limit(VIEW_WIDTH), y_limit(VIEW_HEIGHT), z_limit(VIEW_WIDTH),
-    rho0(REST_DENS), mass(MASS), stiffness(GAS_CONST), h(H), dx(H*0.5), epsilon(EPS)
-    {dt = 0.002;}
+    rho0(REST_DENS), mass(MASS), stiffness(GAS_CONST), h(H), dx(H*0.5), epsilon(EPS), visc(VISC)
+    {}
 
     void init_simulation(bool serialize_coordinate = false){
         this->time = 0;
@@ -66,7 +66,7 @@ struct SPHSimulator {
         //float z = 0.0;
         srand(0);
         //for(float y = this->epsilon; y < this->y_limit - this->epsilon * 2.0; y += dx) {
-        for(float y = 100; y < this->y_limit - this->epsilon * 2.0; y += dx) {
+        for(float y = this->epsilon; y < this->y_limit - this->epsilon * 2.0; y += dx) {
             for(float z = this->epsilon; z <= this->z_limit/2; z+=dx) {
 
                 for(float x = this->epsilon; x <= this->x_limit / 2; x += dx) {
@@ -87,8 +87,18 @@ struct SPHSimulator {
         std::printf("From SPHSimulator::init_simulation: %d particles initialized", particles.size());
         std::cout << particles.size() << std::endl;
         if (serialize_coordinate == true) {
-            this->update_serialized_coordinate();
+            this->initialize_serialized_coordinate();
         }
+        std::printf("Parameters\n");
+        std::printf("Limit: x: %f, y: %f, z: %f\n", x_limit, y_limit, z_limit);
+        std::printf("dx: %f\n", this->dx);
+        std::printf("Rho0: %f\n", rho0);
+        std::printf("Mass: %f\n", mass);
+        std::printf("Stiffness: %f\n", stiffness);
+        std::printf("kernel radius: %f\n", h);
+        std::printf("epsilon: %f\n", this->epsilon);
+        std::printf("visc: %f\n", this->visc);
+
         return;
     }
     void step(const size_t n_step = 1, const bool serialize_coordinate = false) {
@@ -133,12 +143,13 @@ struct SPHSimulator {
                 float r = rij.norm();
                 if (r < this->h) {
                     //fpress += -rij.normalized() * this->mass * (pi.p + pj.p) / (2.f * pj.rho) * SPIKY_GRAD * pow(this->h - r, 3.f);
-                    fpress += -rij.normalized() * this->mass * (pi.p + pj.p) / (2.f * pj.rho) * this->spiky_grad * pow(this->h - r, 3.f);
-                    fvisc += VISC * this->mass * (pj.v - pi.v) / pj.rho * this->visc_lap * (this->h -r);
+                    //fpress += -rij.normalized() * this->mass * (pi.p + pj.p) / (2.f * pj.rho) * this->spiky_grad * pow(this->h - r, 2.f);
+                    fpress += rij.normalized() * this->mass * (pi.p + pj.p) / (2.f * pj.rho) * this->spiky_grad * pow(this->h - r, 2.f);
+                    fvisc += this->visc * this->mass * (pj.v - pi.v) / pj.rho * this->visc_lap * (this->h -r);
                 }
             }
             //Eigen::Vector3d fgrav = G*this->mass / pi.rho;
-            Eigen::Vector3d fgrav = G;
+            Eigen::Vector3d fgrav = G * pi.rho;
             pi.f = fpress + fvisc + fgrav;
         }
     }
@@ -179,12 +190,20 @@ struct SPHSimulator {
     size_t get_num_particles() {
         return this->particles.size();
     }
-    void update_serialized_coordinate(void) {
+    void initialize_serialized_coordinate(void) {
         this->serialized_coordinates.clear();
         for(const auto &ptcl: this->particles) {
             this->serialized_coordinates.push_back(float(ptcl.r[0]));
             this->serialized_coordinates.push_back(float(ptcl.r[1]));
             this->serialized_coordinates.push_back(float(ptcl.r[2]));
+        }
+    }
+    void update_serialized_coordinate(void) {
+        this->serialized_coordinates.clear();
+        for(size_t i = 0; i < this->particles.size(); i++) {
+            this->serialized_coordinates[3*i + 0] = this->particles[i].r[0];
+            this->serialized_coordinates[3*i + 1] = this->particles[i].r[1];
+            this->serialized_coordinates[3*i + 2] = this->particles[i].r[2];
         }
     }
     uintptr_t get_serialized_coordinate_buffer_ptr() {
@@ -207,6 +226,7 @@ struct SPHSimulator {
     float h;
     float dx;
     float epsilon;
+    float visc;
 
     float poly6, spiky_grad, visc_lap;
     void define_kernel_constants(void) {
@@ -236,6 +256,7 @@ EMSCRIPTEN_BINDINGS(my_module) {
         .property("dx", &SPHSimulator::dx)
         .property("dt", &SPHSimulator::dt)
         .property("epsilon", &SPHSimulator::epsilon)
+        .property("visc", &SPHSimulator::visc)
         ;
 }
 #else
