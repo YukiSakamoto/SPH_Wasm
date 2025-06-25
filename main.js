@@ -34,16 +34,21 @@ const run_controller = {
 	y_shift: 0,
 	z_shift: 0,
 	sphere_scale: 1.0,
+	limit_times: false,
 	num_forward: 1,
 	num_forward_actual: 1,
-	start: function() {
+	initialize: function() {
 		this.initialize_flag = true;
 	},
-	start_done: function() {
+	initialize_done: function() {
 		this.initialize_flag = false;
 	},
 	step_forward: function () {
-		this.num_forward_actual = this.num_forward;
+		if (run_controller.limit_times == true) {
+			this.num_forward_actual = this.num_forward;
+		} else {
+			this.num_forward_actual = -1;
+		}
 		this.run_flag = true;
 	},
 	stop: function() {
@@ -121,12 +126,18 @@ createModule().then((Module) => {
 		folder.add(run_controller, 'z_shift').name('z shift after scaling');
 
 		gui.add(run_controller, 'num_particles').name("Number of Particles");
-		gui.add(run_controller, 'start').name('Start');
+		gui.add(run_controller, 'initialize').name('Initialize');
 		gui.add(run_controller, 'step_forward').name('Step Forward');
 		gui.add(run_controller, 'stop').name('Stop');
-		gui.add(run_controller, 'num_forward').name('Number of steps');
+		const controller_limit_times_checkbox = gui.add(run_controller, 'limit_times').name('Limit steps');
+		const controller_num_forward_input = gui.add(run_controller, 'num_forward').name('Number of steps');
 		//gui.add(run_controller, "run_flag").name('Run');
-		gui.add(run_controller, 'n_steps').name('n_steps');
+		gui.add(run_controller, 'n_steps').name('Number of evolutions / Step');
+
+		const num_forward_input_element = controller_num_forward_input.domElement.querySelector('input');
+		controller_limit_times_checkbox.onChange((enabled) => {
+			num_forward_input_element.disabled = !enabled;
+		});
 
 		const folder_sph_params = gui.addFolder('SPH Parameters');
 		folder_sph_params.add(sph_params, 'x_limit').name('x_limit [m]').onChange(value => {
@@ -190,7 +201,7 @@ createModule().then((Module) => {
 			mesh.dispose();
 		}
 		let n = sim.get_num_particles();
-		let ball_geometry = new THREE.SphereGeometry(0.05, 8, 8);
+		let ball_geometry = new THREE.SphereGeometry(0.1, 8, 8);
 		let ball_material = new THREE.MeshBasicMaterial({color:0x0000ff});
 		mesh = new THREE.InstancedMesh(ball_geometry, ball_material, n);
 		console.log(sim.x_limit, sim.y_limit, sim.z_limit);
@@ -274,12 +285,12 @@ createModule().then((Module) => {
 			sim.y_limit * run_controller.y_scale, 
 			sim.z_limit * run_controller.z_scale);
 		wireframe.position.set(
-			sim.x_limit * run_controller.x_scale / 2.0, 
-			sim.y_limit * run_controller.y_scale / 2.0, 
-			sim.z_limit * run_controller.z_scale / 2.0 );
+			sim.x_limit * run_controller.x_scale / 2.0 + run_controller.x_shift, 
+			sim.y_limit * run_controller.y_scale / 2.0 + run_controller.y_shift, 
+			sim.z_limit * run_controller.z_scale / 2.0 + run_controller.z_shift);
 		if (run_controller.initialize_flag == true) {
 			setup_simulation();
-			run_controller.start_done();
+			run_controller.initialize_done();
 			if (use_instanced_mesh == true) {
 				setup_instanced_mesh();
 			} else {
